@@ -1,0 +1,68 @@
+#include <QTRSensors.h>
+
+#define DEBUG 1
+#define EMITTER_PIN 2 
+#define NUM_SENSORES 6
+#define NUM_SAMPLES_PER_SENSOR 4
+/* São aproximadamente 10 us para realizar uma única conversão analog - digital. Então, se 
+NUM_SAMPLES_PER_SENSOR é de 4 e NUM_SENSORES é 6, demorará 4 * 6 * 100 us = ~2.5ms para fazer
+uma leitura completa. Aumentar esse parâmetro aumenta a quantidade de leitura ao custo de 
+tempo de processamento.*/
+unsigned int sensorValues[NUM_SENSORES]; 
+
+
+QTRSensorsAnalog sensores((unsigned char[]) {1, 2, 3, 4, 5, 6}, NUM_SENSORES, NUM_SAMPLES_PER_SENSOR, EMITTER_PIN);
+/* QTRSensorsAnalog qtra(unsigned char* pins, unsigned char numSensors, 
+   unsigned int timeout, unsigned char emitterPin);*/
+
+void setup(){
+	delay(500);
+
+	pinMode(13, OUTPUT);
+	digitalWrite(13, HIGH);
+	for(int i; i < 400; i++) 
+		sensores.calibrate(); 
+	digitalWrite(13, LOW);
+
+
+/* Faz a análise dos valores máximos e mínimos de todos 
+   os sensores. */
+	if(DEBUG) { 
+		Serial.begin(9600); 
+		for(int i = 0; i<NUM_SENSORES; i++){
+			Serial.print(sensores.calibratedMinimumOn[i]);
+			Serial.print(' ');
+		}
+		Serial.println();
+
+		for(int i = 0; i<NUM_SENSORES; i++){
+			Serial.print(sensores.calibratedMinimumOn[i]);
+			Serial.print(' ');
+		}
+		Serial.println();
+		Serial.println();
+		delay(1000);
+	}
+
+}
+
+void loop(){
+/* Função readLine retorna a posição da linha. Equação:
+
+	   0*value0 + 1000*value1 + 2000*value2 + ...
+	  --------------------------------------------
+   		  value0  +  value1  +  value2 + ...
+*/
+
+	unsigned int position = sensores.readLine(sensorValues);
+
+    if(DEBUG) { 
+		for(int i = 0; i < NUM_SENSORES; i++){
+			Serial.print(sensorValues[i]);
+			Serial.print('\t');
+    	}
+    	Serial.println(position);
+		delay(250);    
+    }
+}
+
