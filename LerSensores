@@ -20,7 +20,7 @@ void setup(){
 
 	pinMode(13, OUTPUT);
 	digitalWrite(13, HIGH);
-	for(int i; i < 400; i++) 
+	for(int i = 0; i < 400; i++) 
 		sensores.calibrate(); 
 	digitalWrite(13, LOW);
 
