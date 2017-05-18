@@ -11,12 +11,13 @@
 #define VELOCIDADE_MAXIMA         254
 int POSICAO_MEDIA = ((NUM_SENSORES - 1) * 1000) / 2;
 int DISTANCIA_MEDIA = ((NUM_SENSORES - 1) * 10) / 2;
+int sensorValues[NUM_SENSORES];
+int arrayPosicoes[] = {-25,-20,-15,-10,-5,0,5,10,15,20,25};
 /* São aproximadamente 10 us para realizar uma única conversão analog - digital. Então, se
   NUM_SAMPLES_PER_SENSOR é de 4 e NUM_SENSORES é 6, demorará 4 * 6 * 100 us = ~2.5ms para fazer
   uma leitura completa. Aumentar esse parâmetro aumenta a quantidade de leitura ao custo de
   tempo de processamento.*/
 float deltaTime = 0;
-int posicao = 0;
 unsigned int position = 0;
 int  velocidadeMotorDireito    = 0;
 int  velocidadeMotorEsquerdo   = 0;
@@ -28,13 +29,13 @@ int correcao        = 0;
 int erro            = 0;
 int erroAnterior    = 0;
 int somatorioDeErro = 0;
-unsigned int sensorValues[NUM_SENSORES];
 unsigned short binSensors[NUM_SENSORES];
 QTRSensorsAnalog sensores((unsigned char[]) {
   5, 4, 3, 2, 1, 0
 }, NUM_SENSORES, NUM_SAMPLES_PER_SENSOR, EMITTER_PIN);
 /* QTRSensorsAnalog qtra(unsigned char* pins, unsigned char numSensors,
    unsigned int timeout, unsigned char emitterPin);*/
+   
 void setup() {
   delay(500);
   pinMode(13, OUTPUT);
@@ -59,18 +60,20 @@ void setup() {
     delay(1000);
   }
 }
+
 void loop() {
   controle();
   if (DEBUG) {
     for (int i = 0; i < NUM_SENSORES; i++) {
-      Serial.print(sensorValues[i]);
+      Serial.print(binSensors[i]);
       Serial.print('\t');
     }
-
     Serial.print("posicao: ");
-    Serial.print(posicao);
+    Serial.print(posicaoBin());
     Serial.print(" |  erro: ");
     Serial.print(erro);
+    Serial.print(" |  Sensores na Linha: ");
+    Serial.print(contadorLinhas);
     Serial.print(" |  esquerdo: ");
     Serial.print(velocidadeMotorEsquerdo);
     Serial.print(" |  direito: ");
@@ -92,60 +95,62 @@ void controle() {
     motorDireito(velocidadeMotorDireito);
   }
 }
-
+//Funcionando Ok!
 void leituraBin() {
+  //Nessa linha de comando, os valores, já calibrados, são distribuidos no array "sensorValues", com o comando readLine. "position" neste caso não está sendo utilizado, mas sensorValues
+  //têm seu valor alterado
   position = sensores.readLine(sensorValues, true);
+  contadorLinhas = 0;
   for (int i = 0; i < NUM_SENSORES; i++) {
     if (sensorValues[i] < 50) {
       binSensors[i] = 1;
-      contadorLinhas++;
+      contadorLinhas++; // Quantos sensores estão vendo linha
     }
     else binSensors[i] = 0;
   }
 }
 
+//Não está funcionando.
 int posicaoBin() {
   leituraBin();
-  if (contadorLinhas == 2) {
-    if (binSensors[2] == 1 && binSensors[3] == 1) {
-      posicao = 0;
-    } else if (binSensors[0] == 1 && binSensors[1] == 1)
-      posicao = 20;
+  int posicao = 0;
+  if(contadorLinhas == 3){
+    if (binSensors[0] == 1 && binSensors[1] == 1 && binSensors[2] == 1)
+      return 15;
+    else if (binSensors[1] == 1 && binSensors[2] == 1 && binSensors[3] == 1)
+      return 5;
+    else if (binSensors[2] == 1 && binSensors[3] == 1 && binSensors[4] == 1)
+      return -5;
+    else if (binSensors[3] == 1 && binSensors[4] == 1 && binSensors[5] == 1)
+      return -15;
+  }
+  else if (contadorLinhas == 2) {
+    if (binSensors[0] == 1 && binSensors[1] == 1)
+      return 20;
     else if (binSensors[1] == 1 && binSensors[2] == 1)
-      posicao = 10;
+      return 10;
+    else if (binSensors[2] == 1 && binSensors[3] == 1)
+      return 0;
     else if (binSensors[3] == 1 && binSensors[4] == 1)
-      posicao = 10;
+      return -10;
     else if (binSensors[4] == 1 && binSensors[5] == 1)
-      posicao = 20;
+      return -20;
   }
   else if (contadorLinhas == 1) {
-    posicao = 25;
-    for (int i = 0; i <= NUM_SENSORES; i++) {
-      if (binSensors[i] == 0)
-        posicao += 10;
-      else
-        posicao += 0;
-    }
+    if (binSensors[0] == 1)
+      return 25;
+    else if (binSensors[NUM_SENSORES - 1])
+      return -25;
   }
-  else {
-    if (binSensors[0] == 1 && binSensors[1] == 1 && binSensors[2] == 1)
-      posicao = 15;
-    else if (binSensors[1] == 1 && binSensors[2] == 1 && binSensors[3] == 1)
-      posicao = 5;
-    else if (binSensors[2] == 1 && binSensors[3] == 1 && binSensors[4] == 1)
-      posicao = 5;
-    else if (binSensors[3] == 1 && binSensors[4] == 1 && binSensors[5] == 1)
-      posicao = 15;
-  }
-  if(flagEsquerda)
-   return posicao;
-  if(flagDireita)
-   return -posicao;
 }
 
+int iniciaCorrecao() {
+  erro = posicaoBin();
+  return  (kp * erro) + (kd * (erro - erroAnterior)) + (ki * somatorioDeErro);
+}
+ /*
 boolean flagEsquerda() {
   int contador = 0;
-  leituraBin();
   for (int i = 0; i < (NUM_SENSORES / 2) - 1; i++) {
     if (binSensors[i] == 1)
       contador++;
@@ -156,20 +161,15 @@ boolean flagEsquerda() {
 }
 boolean flagDireita() {
   int contador = 0;
-  leituraBin();
-  for (int i = (NUM_SENSORES/2) + 1; i < NUM_SENSORES; i++) {
+  for (int i = (NUM_SENSORES / 2) + 1; i < NUM_SENSORES; i++) {
     if (binSensors[i] == 1)
       contador;
   }
-  if(contador > 0)
+  if (contador > 0)
     return true;
   else return false;
 }
-
-int iniciaCorrecao() {
-  erro = posicaoBin();
-  return  (kp * erro) + (kd * (erro - erroAnterior)) + (ki * somatorioDeErro);
-}
+*/
 
 //Função para permitir apenas potências abaixo da máxima
 int limitadorPotencia(int potencia) {
